@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Consumer Search</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-slate-100 text-slate-900">
+
+<main class="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-10">
+
+  <section class="w-full rounded-2xl bg-white p-6 shadow-xl sm:p-8">
+
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+        Consumer Search
+      </h1>
+
+      <p class="mt-2 text-sm text-slate-500">
+        Search by consumer number or consumer name.
+      </p>
+    </div>
+
+
+    <!-- Search Input -->
+    <label
+      for="searchInput"
+      class="mb-2 block text-sm font-semibold"
+    >
+      Consumer Number / Name
+    </label>
+
+
+    <div class="flex flex-col gap-3 sm:flex-row">
+
+      <input
+        id="searchInput"
+        type="text"
+        autocomplete="off"
+        placeholder="Enter consumer number or name"
+        class="w-full rounded-xl border border-slate-300 px-4 py-3
+        outline-none transition
+        focus:border-indigo-500
+        focus:ring-4
+        focus:ring-indigo-100"
+      >
+
+      <button
+        id="searchBtn"
+        type="button"
+        class="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white
+        transition hover:bg-indigo-700 active:scale-[0.98]"
+      >
+        Search
+      </button>
+
+    </div>
+
+
+    <!-- Status -->
+    <div
+      id="status"
+      class="mt-4 text-sm text-slate-500"
+    >
+      Loading consumer list...
+    </div>
+
+
+    <!-- Results -->
+    <div
+      id="result"
+      class="mt-5"
+    ></div>
+
+  </section>
+
+</main>
+
+
+<script>
+
+let consumers = [];
+
+
+const input = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const status = document.getElementById("status");
+const result = document.getElementById("result");
+
+
+
+/* ==============================
+   NORMALIZE
+================================ */
+
+function normalize(value) {
+
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+}
+
+
+
+/* ==============================
+   LOAD JSON
+================================ */
+
+async function loadConsumers() {
+
+  status.innerHTML = "Loading consumer list...";
+
+  try {
+
+    const response = await fetch("consumers.json?t=" + Date.now());
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        `HTTP ${response.status} - ${response.statusText}`
+      );
+
+    }
+
+
+    const data = await response.json();
+
+
+    if (!Array.isArray(data)) {
+
+      throw new Error(
+        "consumers.json must contain a JSON array."
+      );
+
+    }
+
+
+    /*
+      Clean JSON data
+    */
+
+    consumers = data
+      .filter(item => item)
+      .map(item => ({
+
+        consumerNo:
+          String(item.consumerNo ?? "").trim(),
+
+        consumerName:
+          String(item.consumerName ?? "").trim()
+
+      }))
+      .filter(item =>
+        item.consumerNo !== "" ||
+        item.consumerName !== ""
+      );
+
+
+    status.innerHTML = `
+      <span class="font-semibold text-emerald-600">
+        ${consumers.length.toLocaleString()}
+        consumer records loaded successfully.
+      </span>
+    `;
+
+
+    console.log(
+      "Consumers loaded:",
+      consumers.length
+    );
+
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "Consumer JSON loading error:",
+      error
+    );
+
+
+    /*
+      Check if user opened index.html
+      directly using file://
+    */
+
+    if (window.location.protocol === "file:") {
+
+      status.innerHTML = `
+
+        <div
+          class="rounded-xl border border-amber-200
+          bg-amber-50 p-4 text-amber-800"
+        >
+
+          <div class="font-bold">
+            Cannot load consumers.json
+          </div>
+
+          <div class="mt-2 text-sm">
+
+            You opened this page directly from your computer.
+
+            <br><br>
+
+            Browser security prevents JavaScript from loading
+            <strong>consumers.json</strong>
+            using <strong>file://</strong>.
+
+            <br><br>
+
+            Run the website using a local server.
+
+          </div>
+
+        </div>
+
+      `;
+
+    }
+
+    else {
+
+      status.innerHTML = `
+
+        <div
+          class="rounded-xl border border-red-200
+          bg-red-50 p-4 text-red-700"
+        >
+
+          <strong>
+            Could not load consumers.json
+          </strong>
+
+          <div class="mt-2 text-xs">
+
+            ${escapeHtml(error.message)}
+
+          </div>
+
+        </div>
+
+      `;
+
+    }
+
+  }
+
+}
+
+
+
+/* ==============================
+   SEARCH
+================================ */
+
+function searchConsumer() {
+
+  const query = normalize(input.value);
+
+
+  result.innerHTML = "";
+
+
+  if (!query) {
+
+    result.innerHTML = `
+
+      <div
+        class="rounded-xl border border-amber-200
+        bg-amber-50 p-5 text-amber-800"
+      >
+
+        <strong>
+          Please enter a consumer number or name.
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+
+  /*
+    Exact consumer number match
+
+    OR
+
+    partial name match
+  */
+
+  const matches = consumers.filter(item => {
+
+    const consumerNo =
+      normalize(item.consumerNo);
+
+    const consumerName =
+      normalize(item.consumerName);
+
+
+    return (
+
+      consumerNo === query ||
+
+      consumerName.includes(query)
+
+    );
+
+  });
+
+
+
+  /* ==============================
+     NOT FOUND
+  ================================ */
+
+  if (matches.length === 0) {
+
+    result.innerHTML = `
+
+      <div
+        class="rounded-xl border border-red-200
+        bg-red-50 p-5 text-red-800"
+      >
+
+        <div class="text-lg font-bold">
+          Consumer Not Found
+        </div>
+
+        <div class="mt-1 text-sm">
+
+          No matching consumer was found.
+
+        </div>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+
+  /* ==============================
+     FOUND
+  ================================ */
+
+  result.innerHTML = `
+
+    <div
+      class="mb-3 flex items-center justify-between"
+    >
+
+      <h2 class="font-bold text-slate-800">
+        Search Results
+      </h2>
+
+      <span class="text-sm text-slate-500">
+
+        ${matches.length}
+        match${matches.length === 1 ? "" : "es"}
+
+      </span>
+
+    </div>
+
+
+    <div class="space-y-3">
+
+      ${matches.map(item => `
+
+        <div
+          class="rounded-xl border border-emerald-200
+          bg-emerald-50 p-5"
+        >
+
+          <div
+            class="text-xs font-semibold uppercase
+            tracking-wide text-emerald-700"
+          >
+            Consumer Available
+          </div>
+
+
+          <div
+            class="mt-3 grid gap-4 sm:grid-cols-2"
+          >
+
+
+            <!-- Consumer Number -->
+
+            <div>
+
+              <div
+                class="text-xs text-slate-500"
+              >
+                Consumer Number
+              </div>
+
+              <div
+                class="font-bold text-slate-900"
+              >
+                ${escapeHtml(item.consumerNo)}
+              </div>
+
+            </div>
+
+
+
+            <!-- Consumer Name -->
+
+            <div>
+
+              <div
+                class="text-xs text-slate-500"
+              >
+                Consumer Name
+              </div>
+
+              <div
+                class="font-bold text-slate-900"
+              >
+                ${escapeHtml(item.consumerName)}
+              </div>
+
+            </div>
+
+
+          </div>
+
+        </div>
+
+      `).join("")}
+
+    </div>
+
+  `;
+
+}
+
+
+
+/* ==============================
+   ESCAPE HTML
+================================ */
+
+function escapeHtml(value) {
+
+  return String(value).replace(
+
+    /[&<>"']/g,
+
+    character => ({
+
+      "&": "&amp;",
+
+      "<": "&lt;",
+
+      ">": "&gt;",
+
+      '"': "&quot;",
+
+      "'": "&#039;"
+
+    }[character])
+
+  );
+
+}
+
+
+
+/* ==============================
+   EVENTS
+================================ */
+
+searchBtn.addEventListener(
+  "click",
+  searchConsumer
+);
+
+
+input.addEventListener(
+  "keydown",
+  event => {
+
+    if (event.key === "Enter") {
+
+      searchConsumer();
+
+    }
+
+  }
+);
+
+
+
+/* ==============================
+   START
+================================ */
+
+loadConsumers();
+
+</script>
+
+</body>
+</html>
